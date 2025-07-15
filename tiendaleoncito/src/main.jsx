@@ -14,6 +14,7 @@ import Proveedores from './principal/page/Proveedores.jsx'
 import ReporteProductos from './principal/page/ReporteProductos.jsx'
 import ReporteProveedores from './principal/page/ReporteProveedores.jsx'
 import Personal from './principal/page/Personal.jsx'
+import { Nomina } from "./principal/page/Nomina.jsx";
 
 const router = createBrowserRouter([
   {
@@ -68,6 +69,10 @@ const router = createBrowserRouter([
   {
     path: '/reporte-proveedores',
     element: <ReporteProveedores/>
+  },
+  {
+    path:'/nomina',
+    element: <Nomina/>
   }
 
 ]);
