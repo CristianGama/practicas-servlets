@@ -1,6 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 
 export default function FormProductos() {
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const productoId = params.get('id');
+
   const [formData, setFormData] = useState({
     nombre: '',
     marca: '',
@@ -11,8 +16,36 @@ export default function FormProductos() {
 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
+  const [showModal, setShowModal] = useState(false);
 
-  // Manejar cambios en los inputs
+  // Obtener datos si es edición
+  useEffect(() => {
+    if (productoId) {
+      const obtenerProducto = async () => {
+        try {
+          const res = await fetch(`http://localhost:4000/api/productos/${productoId}`);
+          const data = await res.json();
+          console.log(data.data)
+          if (res.ok && data.success) {
+            setFormData({
+              nombre: data.data.nombre,
+              marca: data.data.marca,
+              cantidad: data.data.cantidad,
+              precio: data.data.precio,
+              tipo: data.data.tipo
+            });
+          } else {
+            setMessage({ type: 'error', text: data?.error || 'No se pudo cargar el producto.' });
+          }
+        } catch (err) {
+          setMessage({ type: 'error', text: 'Error al obtener el producto.' });
+        }
+      };
+
+      obtenerProducto();
+    }
+  }, [productoId]);
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
@@ -21,7 +54,6 @@ export default function FormProductos() {
     }));
   };
 
-  // Manejar checkboxes de tipo (solo uno puede estar seleccionado)
   const handleTipoChange = (tipoSeleccionado) => {
     setFormData(prev => ({
       ...prev,
@@ -29,7 +61,6 @@ export default function FormProductos() {
     }));
   };
 
-  // Validar formulario
   const validarFormulario = () => {
     if (!formData.nombre.trim()) {
       setMessage({ type: 'error', text: 'El nombre es requerido' });
@@ -50,17 +81,18 @@ export default function FormProductos() {
     return true;
   };
 
-  // Enviar formulario
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    
     if (!validarFormulario()) return;
+    setShowModal(true);
+  };
 
+  const confirmarEnvio = async () => {
+    setShowModal(false);
     setLoading(true);
     setMessage({ type: '', text: '' });
 
     try {
-      // Preparar datos asegurándose de que sean válidos
       const dataToSend = {
         nombre: formData.nombre.trim(),
         marca: formData.marca,
@@ -69,64 +101,51 @@ export default function FormProductos() {
         tipo: formData.tipo
       };
 
-      console.log('Datos a enviar:', dataToSend); // Para debugging
+      const url = productoId
+        ? `http://localhost:4000/api/productos/${productoId}`
+        : 'http://localhost:4000/api/productos';
 
-      const response = await fetch('http://localhost:4000/api/productos', {
-        method: 'POST',
+      const method = productoId ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(dataToSend)
       });
 
-      console.log('Status de respuesta:', response.status); // Para debugging
-      
-      let data;
-      try {
-        data = await response.json();
-      } catch (jsonError) {
-        console.error('Error parsing JSON:', jsonError);
-        throw new Error('Respuesta del servidor no válida');
-      }
-
-      console.log('Respuesta del servidor:', data); // Para debugging
+      const data = await response.json();
 
       if (response.ok && data.success) {
-        setMessage({ type: 'success', text: 'Producto creado exitosamente' });
-        // Limpiar formulario después del éxito
-        setFormData({
-          nombre: '',
-          marca: '',
-          cantidad: 1,
-          precio: '',
-          tipo: ''
+        setMessage({
+          type: 'success',
+          text: productoId ? 'Producto actualizado correctamente' : 'Producto creado exitosamente'
         });
+
+        if (!productoId) {
+          setFormData({ nombre: '', marca: '', cantidad: 1, precio: '', tipo: '' });
+        }
       } else {
-        setMessage({ 
-          type: 'error', 
-          text: data?.error || `Error ${response.status}: ${response.statusText}` 
+        setMessage({
+          type: 'error',
+          text: data?.error || `Error ${response.status}: ${response.statusText}`
         });
       }
     } catch (error) {
-      console.error('Error completo:', error);
-      setMessage({ 
-        type: 'error', 
-        text: error.message || 'Error de conexión con el servidor' 
+      setMessage({
+        type: 'error',
+        text: error.message || 'Error de conexión con el servidor'
       });
     } finally {
       setLoading(false);
     }
   };
 
-  // Limpiar formulario
+  const cancelarEnvio = () => setShowModal(false);
+
   const handleLimpiar = () => {
-    setFormData({
-      nombre: '',
-      marca: '',
-      cantidad: 1,
-      precio: '',
-      tipo: ''
-    });
+    setFormData({ nombre: '', marca: '', cantidad: 1, precio: '', tipo: '' });
     setMessage({ type: '', text: '' });
   };
 
@@ -135,43 +154,33 @@ export default function FormProductos() {
       <div className="flex items-center justify-center min-h-screen">
         <div className="m-6 space-y-8 bg-white shadow-xl rounded-2xl md:flex-row md:space-y-0">
           <div>
-            <h1 className="text-center font-sans text-2xl py-0 px-2 my-5 mx-1">PRODUCTOS</h1>
-            
-            {/* Mensaje de estado */}
+            <h1 className="text-center font-sans text-2xl py-0 px-2 my-5 mx-1">
+              {productoId ? 'MODIFICAR PRODUCTO' : 'CREAR PRODUCTO'}
+            </h1>
+
             {message.text && (
               <div className={`mx-2 mb-4 p-3 rounded-md ${
-                message.type === 'success' 
-                  ? 'bg-green-100 text-green-700 border border-green-300' 
+                message.type === 'success'
+                  ? 'bg-green-100 text-green-700 border border-green-300'
                   : 'bg-red-100 text-red-700 border border-red-300'
               }`}>
                 {message.text}
               </div>
             )}
 
-            <div className="flex flex-row py-2">
-              <div className="flex flex-col py-1 my-0 m-2">
-                <label className="mb-2 text-sm">NOMBRE</label>
-                <input 
-                  type="text"
-                  className="w-full p-2 border border-gray-300 rounded-md placeholder:font-light placeholder:text-gray-500"
-                  name="nombre"
-                  id="nombre"
-                  value={formData.nombre}
-                  onChange={handleInputChange}
-                  placeholder="Nombre del producto"
-                />
-              </div>
-            </div>
-
-            <div className="py-2 my-0 m-2">
-              <label className="mb-2 text-sm">Marca</label>
-              <select 
-                name="marca" 
-                id="marca" 
-                className="w-full h-10 p-2 border border-gray-300 rounded-md placeholder:font-light placeholder:text-gray-500"
-                value={formData.marca}
+            {/* Campos del formulario */}
+            <div className="flex flex-col gap-2 px-4">
+              <label>Nombre</label>
+              <input
+                type="text"
+                name="nombre"
+                value={formData.nombre}
                 onChange={handleInputChange}
-              >
+                className="border p-2 rounded"
+              />
+
+              <label>Marca</label>
+              <select name="marca" value={formData.marca} onChange={handleInputChange} className="border p-2 rounded">
                 <option value="">Seleccionar marca</option>
                 <option value="BIMBO">BIMBO</option>
                 <option value="COCA-COLA">COCA-COLA</option>
@@ -179,94 +188,86 @@ export default function FormProductos() {
                 <option value="LALA">LALA</option>
                 <option value="NESTLE">NESTLE</option>
               </select>
-            </div>
 
-            <div className="flex flex-col py-1 my-0 m-2">
-              <label className="mb-2 text-sm">Cantidad</label>
-              <select 
-                name="cantidad" 
-                id="cantidad" 
-                className="w-full h-10 p-2 border border-gray-300 rounded-md placeholder:font-light placeholder:text-gray-500"
-                value={formData.cantidad}
-                onChange={handleInputChange}
-              >
+              <label>Cantidad</label>
+              <select name="cantidad" value={formData.cantidad} onChange={handleInputChange} className="border p-2 rounded">
                 {[...Array(10)].map((_, i) => (
-                  <option key={i + 1} value={i + 1}>{i + 1}</option>
+                  <option key={i+1} value={i+1}>{i+1}</option>
                 ))}
               </select>
-            </div>
 
-            <div className="flex flex-col py-1 my-0 m-2">
-              <label className="mb-2 text-sm">Precio</label>
-              <input 
+              <label>Precio</label>
+              <input
                 type="number"
+                name="precio"
                 step="0.01"
                 min="0"
-                className="w-full p-2 border border-gray-300 rounded-md placeholder:font-light placeholder:text-gray-500"
-                name="precio"
-                id="precio"
                 value={formData.precio}
                 onChange={handleInputChange}
-                placeholder="0.00"
+                className="border p-2 rounded"
               />
-            </div>
 
-            <p className="text-center font-sans text-sm py-0 my-2 m-0">Tipo</p>
-            <div className="flex flex-row py-2 items-center justify-center">
-              <div className="flex flex-row py-1 my-0 m-2 items-center">
-                <label className="px-1 text-sm text-center">Embolsado</label>
-                <input 
-                  type="checkbox"
-                  className="ml-2 w-4 h-4"
-                  checked={formData.tipo === 'Embolsado'}
-                  onChange={() => handleTipoChange('Embolsado')}
-                />
-              </div>
-              <div className="flex flex-row py-1 my-0 m-2 items-center">
-                <label className="px-1 text-sm text-center">Enlatado</label>
-                <input 
-                  type="checkbox"
-                  className="ml-2 w-4 h-4"
-                  checked={formData.tipo === 'Enlatado'}
-                  onChange={() => handleTipoChange('Enlatado')}
-                />
-              </div>
-              <div className="flex flex-row py-1 my-0 m-2 items-center">
-                <label className="px-1 text-sm text-center">Caja</label>
-                <input 
-                  type="checkbox"
-                  className="ml-2 w-4 h-4"
-                  checked={formData.tipo === 'Caja'}
-                  onChange={() => handleTipoChange('Caja')}
-                />
+              <label>Tipo</label>
+              <div className="flex gap-4">
+                {['Embolsado', 'Enlatado', 'Caja'].map(tipo => (
+                  <label key={tipo} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.tipo === tipo}
+                      onChange={() => handleTipoChange(tipo)}
+                    />
+                    {tipo}
+                  </label>
+                ))}
               </div>
             </div>
 
-            <div className="py-2 my-0 m-2">
-              <button 
+            <div className="flex justify-center gap-2 m-4">
+              <button
                 onClick={handleSubmit}
                 disabled={loading}
-                className="w-25 bg-green-600 text-white font-bold p-2 rounded-lg m-1 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                className="bg-green-600 text-white font-bold p-2 rounded-lg hover:bg-green-700 disabled:bg-gray-400"
               >
-                {loading ? 'Enviando...' : 'Enviar'}
+                {loading ? 'Enviando...' : productoId ? 'Modificar' : 'Crear'}
               </button>
-              <button 
-                type="button"
-                onClick={handleLimpiar}
-                className="w-25 bg-orange-600 text-white font-bold p-2 rounded-lg m-1 hover:bg-orange-700"
-              >
+              <button onClick={handleLimpiar} className="bg-orange-600 text-white font-bold p-2 rounded-lg hover:bg-orange-700">
                 Limpiar
               </button>
-              <button 
-                type="button"
-                className="w-25 bg-red-600 text-white font-bold p-2 rounded-lg m-1 hover:bg-red-700"
-              >
+              <a href="/productos" className="bg-red-600 text-white font-bold p-2 rounded-lg hover:bg-red-700">
                 Regresar
-              </button>
+              </a>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Modal de confirmación */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 m-4 max-w-md w-full">
+            <h2 className="text-xl font-bold mb-4 text-center">
+              ¿Está seguro de {productoId ? 'modificar' : 'agregar'} el producto?
+            </h2>
+
+            <div className="mb-6 text-sm space-y-2">
+              <div><strong>Nombre:</strong> {formData.nombre}</div>
+              <div><strong>Marca:</strong> {formData.marca}</div>
+              <div><strong>Cantidad:</strong> {formData.cantidad}</div>
+              <div><strong>Precio:</strong> ${formData.precio}</div>
+              <div><strong>Tipo:</strong> {formData.tipo}</div>
+            </div>
+
+            <div className="flex justify-center gap-4">
+              <button onClick={confirmarEnvio} className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 font-bold">
+                Confirmar
+              </button>
+              <button onClick={cancelarEnvio} className="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 font-bold">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
