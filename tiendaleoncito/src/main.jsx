@@ -15,11 +15,16 @@ import ReporteProductos from './principal/page/ReporteProductos.jsx'
 import ReporteProveedores from './principal/page/ReporteProveedores.jsx'
 import Personal from './principal/page/Personal.jsx'
 import { Nomina } from "./principal/page/Nomina.jsx";
+import { AuthFrom } from "./principal/auth/AuthFrom.jsx";
 
 const router = createBrowserRouter([
   {
     path: "/",
     element: <App />, 
+  },
+  {
+    path: "/auth",
+    element: <AuthFrom/>, 
   },
   {
     path: '/form-personal',
