@@ -17,71 +17,150 @@ io.on('connection', () =>{
 });
 app.use(express.json());
 // PUT - Actualizar producto por ID
-app.put('/api/productos/:id', async (req, res) => {
-  const { id } = req.params;
-  const { nombre, marca, cantidad, precio, tipo } = req.body;
- 
-  // Validación básica
-  if (!nombre || !marca || !cantidad || !precio || !tipo) {
+app.get('/', (req,res) => {
+  res.send('<h1>esto es el chat</h1>');
+});
+
+// --- CRUD inventario ---
+
+// Validar inventario
+const validarInventario = (req, res, next) => {
+  const { nombre } = req.body;
+  if (!nombre || typeof nombre !== 'string' || nombre.trim() === '') {
     return res.status(400).json({
       success: false,
-      error: 'Faltan campos obligatorios'
+      error: 'El nombre del inventario es requerido y debe ser texto'
     });
   }
- 
-  const tiposPermitidos = ['Embolsado', 'Enlatado', 'Caja'];
-  if (!tiposPermitidos.includes(tipo)) {
-    return res.status(400).json({
-      success: false,
-      error: 'Tipo de producto no válido'
-    });
-  }
- 
+  next();
+};
+
+// Obtener todos los inventarios
+app.get('/api/inventario', async (req, res) => {
   try {
-    const sql = `
-      UPDATE productos
-      SET nombre = ?, marca = ?, cantidad = ?, precio = ?, tipo = ?
-      WHERE id = ?
-    `;
- 
-    const [result] = await pool.execute(sql, [
-      nombre,
-      marca,
-      cantidad,
-      precio,
-      tipo,
-      id
-    ]);
- 
-    if (result.affectedRows === 0) {
-      return res.status(404).json({
-        success: false,
-        error: 'Producto no encontrado'
-      });
-    }
- 
+    const [rows] = await pool.execute('SELECT * FROM inventario ORDER BY id DESC');
     res.json({
       success: true,
-      mensaje: 'Producto actualizado correctamente',
-      producto: {
-        id,
-        nombre,
-        marca,
-        cantidad,
-        precio,
-        tipo
-      }
+      data: rows,
+      total: rows.length
     });
-  } catch (err) {
-    console.error('❌ Error al actualizar producto:', err);
+  } catch (error) {
+    console.error('Error obteniendo inventarios:', error);
     res.status(500).json({
       success: false,
       error: 'Error interno del servidor'
     });
   }
 });
-app.get('/', (req,res) => {
-  res.send('<h1>esto es el chat</h1>');
+
+// Obtener inventario por ID
+app.get('/api/inventario/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [rows] = await pool.execute('SELECT * FROM inventario WHERE id = ?', [id]);
+
+    if (rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Inventario no encontrado'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: rows[0]
+    });
+  } catch (error) {
+    console.error('Error obteniendo inventario:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor'
+    });
+  }
+});
+
+// Agregar nuevo inventario
+app.post('/api/inventario', validarInventario, async (req, res) => {
+  try {
+    const { nombre } = req.body;
+
+    const [result] = await pool.execute('INSERT INTO inventario (nombre) VALUES (?)', [nombre.trim()]);
+
+    res.status(201).json({
+      success: true,
+      message: 'Inventario creado exitosamente',
+      data: { id: result.insertId, nombre }
+    });
+  } catch (error) {
+    console.error('Error creando inventario:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor'
+    });
+  }
+});
+
+// Actualizar inventario por ID
+app.put('/api/inventario/:id', validarInventario, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nombre } = req.body;
+
+    // Verificar que exista
+    const [rows] = await pool.execute('SELECT * FROM inventario WHERE id = ?', [id]);
+    if (rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Inventario no encontrado'
+      });
+    }
+
+    // Actualizar
+    await pool.execute('UPDATE inventario SET nombre = ? WHERE id = ?', [nombre.trim(), id]);
+
+    res.json({
+      success: true,
+      message: 'Inventario actualizado correctamente',
+      data: { id: Number(id), nombre }
+    });
+  } catch (error) {
+    console.error('Error actualizando inventario:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor'
+    });
+  }
+});
+
+// Eliminar inventario por ID
+app.delete('/api/inventario/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Verificar que exista
+    const [rows] = await pool.execute('SELECT * FROM inventario WHERE id = ?', [id]);
+    if (rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Inventario no encontrado'
+      });
+    }
+
+    // Eliminar
+    await pool.execute('DELETE FROM inventario WHERE id = ?', [id]);
+
+    res.json({
+      success: true,
+      message: 'Inventario eliminado exitosamente',
+      data: rows[0]
+    });
+  } catch (error) {
+    console.error('Error eliminando inventario:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor'
+    });
+  }
 });
 const validarProducto = (req, res, next) => {
     console.log('Headers:', req.headers);
@@ -205,65 +284,125 @@ app.delete('/api/productos/:id', async (req, res) => {
     }
 });
  
-app.post('/api/productos', validarProducto, async (req, res) => {
-    try {
-        const { nombre, marca, cantidad, precio, tipo } = req.body;
-       
-        console.log('Insertando producto:', { nombre, marca, cantidad, precio, tipo });
-       
-       
-        const query = `
-            INSERT INTO productos (nombre, marca, cantidad, precio, tipo)
-            VALUES (?, ?, ?, ?, ?)
-        `;
-       
-        const [result] = await pool.execute(query, [
-            nombre.trim(),
-            marca.trim(),
-            parseInt(cantidad),
-            parseFloat(precio),
-            tipo
-        ]);
-       
-        // Obtener el producto recién insertado
-        const [newProduct] = await pool.execute(
-            'SELECT * FROM productos WHERE id = ?',
-            [result.insertId]
-        );
-       
-       
-        console.log('Producto insertado exitosamente:', newProduct[0]);
-       
-        res.status(201).json({
-            success: true,
-            message: 'Producto creado exitosamente',
-            data: newProduct[0]
-        });
-       
-    } catch (error) {
-        console.error('Error insertando producto:', error);
-       
-        if (error.code === 'ER_CHECK_CONSTRAINT_VIOLATED') {
-            return res.status(400).json({
-                success: false,
-                error: 'El tipo debe ser: Embolsado, Enlatado o Caja'
-            });
-        }
-       
-        if (error.code === 'ECONNREFUSED') {
-            return res.status(500).json({
-                success: false,
-                error: 'No se puede conectar a la base de datos'
-            });
-        }
-       
-        res.status(500).json({
-            success: false,
-            error: 'Error interno del servidor: ' + error.message
-        });
-    }
-});
+app.put('/api/productos/:id', async (req, res) => {
+  const { id } = req.params;
+  const { nombre, marca, cantidad, precio, tipo, id_inventario } = req.body;
 
+  if (!nombre || !marca || !cantidad || !precio || !tipo || !id_inventario) {
+    return res.status(400).json({
+      success: false,
+      error: 'Faltan campos obligatorios'
+    });
+  }
+
+  const tiposPermitidos = ['Embolsado', 'Enlatado', 'Caja'];
+  if (!tiposPermitidos.includes(tipo)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Tipo de producto no válido'
+    });
+  }
+
+  try {
+    const sql = `
+      UPDATE productos
+      SET nombre = ?, marca = ?, cantidad = ?, precio = ?, tipo = ?, id_inventario = ?
+      WHERE id = ?
+    `;
+
+    const [result] = await pool.execute(sql, [
+      nombre,
+      marca,
+      cantidad,
+      precio,
+      tipo,
+      id_inventario,
+      id
+    ]);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Producto no encontrado'
+      });
+    }
+
+    res.json({
+      success: true,
+      mensaje: 'Producto actualizado correctamente',
+      producto: {
+        id,
+        nombre,
+        marca,
+        cantidad,
+        precio,
+        tipo,
+        id_inventario
+      }
+    });
+  } catch (err) {
+    console.error('❌ Error al actualizar producto:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor'
+    });
+  }
+});
+app.post('/api/productos', validarProducto, async (req, res) => {
+  try {
+    const { nombre, marca, cantidad, precio, tipo, id_inventario } = req.body;
+
+    console.log('Insertando producto:', { nombre, marca, cantidad, precio, tipo, id_inventario });
+
+    const query = `
+      INSERT INTO productos (nombre, marca, cantidad, precio, tipo, id_inventario)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `;
+
+    const [result] = await pool.execute(query, [
+      nombre.trim(),
+      marca.trim(),
+      parseInt(cantidad),
+      parseFloat(precio),
+      tipo,
+      id_inventario
+    ]);
+
+    const [newProduct] = await pool.execute(
+      'SELECT * FROM productos WHERE id = ?',
+      [result.insertId]
+    );
+
+    console.log('Producto insertado exitosamente:', newProduct[0]);
+
+    res.status(201).json({
+      success: true,
+      message: 'Producto creado exitosamente',
+      data: newProduct[0]
+    });
+  } catch (error) {
+    console.error('Error insertando producto:', error);
+
+    if (error.code === 'ER_CHECK_CONSTRAINT_VIOLATED') {
+      return res.status(400).json({
+        success: false,
+        error: 'El tipo debe ser: Embolsado, Enlatado o Caja'
+      });
+    }
+
+    if (error.code === 'ECONNREFUSED') {
+      return res.status(500).json({
+        success: false,
+        error: 'No se puede conectar a la base de datos'
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor: ' + error.message
+    });
+  }
+});
 
 // GET - Obtener todos los proveedores
 app.get('/api/proveedores', async (req, res) => {

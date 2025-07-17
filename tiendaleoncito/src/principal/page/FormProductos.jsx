@@ -11,28 +11,51 @@ export default function FormProductos() {
     marca: '',
     cantidad: 1,
     precio: '',
-    tipo: ''
+    tipo: '',
+    id_inventario: '' // <-- nuevo campo para inventario
   });
 
+  const [inventarios, setInventarios] = useState([]); // Estado para inventarios
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [showModal, setShowModal] = useState(false);
 
-  // Obtener datos si es edición
+  // Obtener datos si es edición + cargar inventarios
   useEffect(() => {
+    // Cargar inventarios
+    const fetchInventarios = async () => {
+      try {
+        const res = await fetch('http://localhost:4000/api/inventario');
+        const data = await res.json();
+        if (res.ok && data.success) {
+          setInventarios(data.data);
+          // Si no hay id_inventario seleccionado, poner el primero
+          if (!formData.id_inventario && data.data.length > 0) {
+            setFormData(prev => ({ ...prev, id_inventario: data.data[0].id.toString() }));
+          }
+        } else {
+          console.warn('No se pudieron obtener los inventarios');
+        }
+      } catch (err) {
+        console.error('Error al cargar inventarios:', err);
+      }
+    };
+
+    fetchInventarios();
+
     if (productoId) {
       const obtenerProducto = async () => {
         try {
           const res = await fetch(`http://localhost:4000/api/productos/${productoId}`);
           const data = await res.json();
-          console.log(data.data)
           if (res.ok && data.success) {
             setFormData({
               nombre: data.data.nombre,
               marca: data.data.marca,
               cantidad: data.data.cantidad,
               precio: data.data.precio,
-              tipo: data.data.tipo
+              tipo: data.data.tipo,
+              id_inventario: data.data.id_inventario ? data.data.id_inventario.toString() : ''
             });
           } else {
             setMessage({ type: 'error', text: data?.error || 'No se pudo cargar el producto.' });
@@ -78,6 +101,10 @@ export default function FormProductos() {
       setMessage({ type: 'error', text: 'Debe seleccionar un tipo' });
       return false;
     }
+    if (!formData.id_inventario) {
+      setMessage({ type: 'error', text: 'Debe seleccionar un inventario' });
+      return false;
+    }
     return true;
   };
 
@@ -98,7 +125,8 @@ export default function FormProductos() {
         marca: formData.marca,
         cantidad: parseInt(formData.cantidad) || 1,
         precio: parseFloat(formData.precio) || 0,
-        tipo: formData.tipo
+        tipo: formData.tipo,
+        id_inventario: parseInt(formData.id_inventario, 10) // <-- incluir inventario
       };
 
       const url = productoId
@@ -124,7 +152,7 @@ export default function FormProductos() {
         });
 
         if (!productoId) {
-          setFormData({ nombre: '', marca: '', cantidad: 1, precio: '', tipo: '' });
+          setFormData({ nombre: '', marca: '', cantidad: 1, precio: '', tipo: '', id_inventario: inventarios.length > 0 ? inventarios[0].id.toString() : '' });
         }
       } else {
         setMessage({
@@ -145,14 +173,14 @@ export default function FormProductos() {
   const cancelarEnvio = () => setShowModal(false);
 
   const handleLimpiar = () => {
-    setFormData({ nombre: '', marca: '', cantidad: 1, precio: '', tipo: '' });
+    setFormData({ nombre: '', marca: '', cantidad: 1, precio: '', tipo: '', id_inventario: inventarios.length > 0 ? inventarios[0].id.toString() : '' });
     setMessage({ type: '', text: '' });
   };
 
   return (
     <div className="bg-[#FFF1E5] h-screen overflow-auto">
       <div className="flex items-center justify-center min-h-screen">
-        <div className="m-6 space-y-8 bg-white shadow-xl rounded-2xl md:flex-row md:space-y-0">
+        <form onSubmit={handleSubmit} className="m-6 space-y-8 bg-white shadow-xl rounded-2xl md:flex-row md:space-y-0">
           <div>
             <h1 className="text-center font-sans text-2xl py-0 px-2 my-5 mx-1">
               {productoId ? 'MODIFICAR PRODUCTO' : 'CREAR PRODUCTO'}
@@ -220,54 +248,78 @@ export default function FormProductos() {
                   </label>
                 ))}
               </div>
+
+              {/* Lista desplegable de inventarios */}
+              <label>Inventario</label>
+              <select
+                name="id_inventario"
+                value={formData.id_inventario}
+                onChange={handleInputChange}
+                className="border p-2 rounded"
+              >
+                <option value="">Seleccionar inventario</option>
+                {inventarios.map(inv => (
+                  <option key={inv.id} value={inv.id}>
+                    {inv.nombre}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="flex justify-center gap-2 m-4">
               <button
-                onClick={handleSubmit}
+                type="submit"
                 disabled={loading}
                 className="bg-green-600 text-white font-bold p-2 rounded-lg hover:bg-green-700 disabled:bg-gray-400"
               >
                 {loading ? 'Enviando...' : productoId ? 'Modificar' : 'Crear'}
               </button>
-              <button onClick={handleLimpiar} className="bg-orange-600 text-white font-bold p-2 rounded-lg hover:bg-orange-700">
+              <button
+                type="button"
+                onClick={handleLimpiar}
+                className="bg-orange-600 text-white font-bold p-2 rounded-lg hover:bg-orange-700"
+              >
                 Limpiar
               </button>
-              <a href="/productos" className="bg-red-600 text-white font-bold p-2 rounded-lg hover:bg-red-700">
-                Regresar
+              <a
+                href="/productos"
+                className="bg-red-600 text-white font-bold p-2 rounded-lg hover:bg-red-700"
+              >
+                Consultar
               </a>
             </div>
           </div>
-        </div>
-      </div>
+        </form>
 
-      {/* Modal de confirmación */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 m-4 max-w-md w-full">
-            <h2 className="text-xl font-bold mb-4 text-center">
-              ¿Está seguro de {productoId ? 'modificar' : 'agregar'} el producto?
-            </h2>
+        {/* Modal de confirmación */}
+        {showModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 m-4 max-w-md w-full">
+              <h2 className="text-xl font-bold mb-4 text-center">
+                ¿Está seguro de {productoId ? 'modificar' : 'agregar'} el producto?
+              </h2>
 
-            <div className="mb-6 text-sm space-y-2">
-              <div><strong>Nombre:</strong> {formData.nombre}</div>
-              <div><strong>Marca:</strong> {formData.marca}</div>
-              <div><strong>Cantidad:</strong> {formData.cantidad}</div>
-              <div><strong>Precio:</strong> ${formData.precio}</div>
-              <div><strong>Tipo:</strong> {formData.tipo}</div>
-            </div>
+              <div className="mb-6 text-sm space-y-2">
+                <div><strong>Nombre:</strong> {formData.nombre}</div>
+                <div><strong>Marca:</strong> {formData.marca}</div>
+                <div><strong>Cantidad:</strong> {formData.cantidad}</div>
+                <div><strong>Precio:</strong> ${formData.precio}</div>
+                <div><strong>Tipo:</strong> {formData.tipo}</div>
+                <div><strong>Inventario:</strong> {inventarios.find(inv => inv.id.toString() === formData.id_inventario)?.nombre || '-'}</div>
+              </div>
 
-            <div className="flex justify-center gap-4">
-              <button onClick={confirmarEnvio} className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 font-bold">
-                Confirmar
-              </button>
-              <button onClick={cancelarEnvio} className="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 font-bold">
-                Cancelar
-              </button>
+              <div className="flex justify-center gap-4">
+                <button onClick={confirmarEnvio} className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 font-bold">
+                  Confirmar
+                </button>
+                <button onClick={cancelarEnvio} className="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 font-bold">
+                  Cancelar
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

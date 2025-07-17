@@ -4,6 +4,7 @@ import {
   createBrowserRouter,
   RouterProvider,
 } from "react-router";
+import Layout from './principal/page/Layout.jsx'
 import App from "./App.jsx";
 import FormPersonal from "./principal/page/FormPersonal.jsx"
 import FormProductos from './principal/page/FormProductos.jsx'
@@ -14,20 +15,44 @@ import Proveedores from './principal/page/Proveedores.jsx'
 import ReporteProductos from './principal/page/ReporteProductos.jsx'
 import ReporteProveedores from './principal/page/ReporteProveedores.jsx'
 import Personal from './principal/page/Personal.jsx'
+import FormInventario from './principal/page/FormInventario.jsx'
+import Inventario from './principal/page/Inventario.jsx'
+import ConsultaInventario from './principal/page/ConsultaInventario.jsx'
 import { Nomina } from "./principal/page/Nomina.jsx";
 import { AuthFrom } from "./principal/auth/AuthFrom.jsx";
 
 const router = createBrowserRouter([
-  {
-    path: "/",
-    element: <App />, 
-  },
+{
+    path: '/',
+    element: <Layout />, // ENVUELVE TODO EN EL HEADER
+    children: [
+{ index: true, element: <App /> },
   {
     path: "/auth",
     element: <AuthFrom/>, 
   },
   {
+    path: '/consulta-inventario/:id',
+    element: <ConsultaInventario/>
+  },
+  {
+    path: '/inventario',
+    element: <Inventario/>
+  },
+  {
+    path: '/form-inventario',
+    element: <FormInventario/>
+  },
+  {
+    path: '/modificar-inventario',
+    element: <FormInventario/>
+  },
+  {
     path: '/form-personal',
+    element: <FormPersonal/>
+  },
+  {
+    path: '/modificar-personal',
     element: <FormPersonal/>
   },
   {
@@ -76,12 +101,12 @@ const router = createBrowserRouter([
     element: <ReporteProveedores/>
   },
   {
-    path:'/nomina',
+    path:'/nomina/:id',
     element: <Nomina/>
   }
-
+    ]
+  }
 ]);
-
 window.addEventListener("DOMContentLoaded", (event => {
   createRoot(document.getElementById("root")).render(
     <RouterProvider router={router} />

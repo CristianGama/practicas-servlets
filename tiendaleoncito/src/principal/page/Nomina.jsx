@@ -1,34 +1,47 @@
 import { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
 
 export const Nomina = () => {
+  const { id } = useParams();
+  const [empleado, setEmpleado] = useState(null);
   const [reporte, setReporte] = useState("");
 
   useEffect(() => {
-    try {
-      const empleados = JSON.parse(localStorage.getItem("empleados")) || [];
+    if (!id) return;
 
-      if (empleados.length === 0) {
-        setReporte("No hay empleados registrados en la nómina.");
-        return;
-      }
+    fetch(`http://localhost:4000/api/personal/${id}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.data) {
+          setEmpleado(data.data);
+        } else {
+          setReporte("No se encontró al empleado.");
+        }
+      })
+      .catch((error) => {
+        console.error("Error al obtener el empleado:", error);
+        setReporte("Error al conectar con el servidor.");
+      });
+  }, [id]);
 
-      // Usamos el primer empleado como ejemplo
-      const e = empleados[0];
+  useEffect(() => {
+    if (!empleado) return;
 
-      // Cálculo del salario final
-      const salarioBase = parseFloat(e.salario) || 0;
-      const iva = parseFloat(e.iva) || 0;
-      const isr = parseFloat(e.isr) || 0;
-      const ventas = parseFloat(e.ventas) || 0;
-      const aumento = parseFloat(e.aumento) || 0;
+    const salarioBase = parseFloat(empleado.salario.replace(/[^0-9.-]+/g, "")) || 0;
+    const iva = 150;
+    const isr = 100;
+    const ventas = 300;
+    const aumento = 200;
 
-      const deducciones = iva + isr;
-      const salarioFinal = salarioBase - deducciones + aumento + ventas;
+    const deducciones = iva + isr;
+    const salarioFinal = salarioBase - deducciones + aumento + ventas;
 
-      const mensaje = `
-Nómina del empleado (ID: ${e.id} / Nombre: ${e.nombre})
+    const mensaje = `
+Nómina del empleado (ID: ${empleado.id} / Nombre: ${empleado.nombre} ${empleado.apellido})
 
-El C. ${e.nombre}, gana $${salarioBase.toFixed(2)}, tiene el puesto "${e.puesto}" y tiene las siguientes deducciones:
+El C. ${empleado.nombre} ${empleado.apellido}, gana $${salarioBase.toFixed(
+      2
+    )}, tiene el puesto "${empleado.puesto}" y tiene las siguientes deducciones:
 - IVA: $${iva.toFixed(2)}
 - ISR: $${isr.toFixed(2)}
 
@@ -39,19 +52,38 @@ Durante el mes obtuvo los siguientes incrementos:
 Teniendo como salario final: $${salarioFinal.toFixed(2)}
 
 Atentamente, Gerente General.
-      `.trim();
+    `.trim();
 
-      setReporte(mensaje);
-    } catch (error) {
-      console.error("Error al generar el reporte:", error);
-      setReporte("Ocurrió un error al generar el reporte.");
-    }
-  }, []);
+    setReporte(mensaje);
+  }, [empleado]);
+
+  const handlePrint = () => {
+    window.print();
+  };
 
   return (
-    <div className="mt-6 bg-green-50 border border-green-300 p-4 rounded shadow max-w-2xl mx-auto whitespace-pre-line">
-      <h3 className="text-lg font-bold mb-2">📄 Reporte de Nómina</h3>
-      <p className="text-gray-800">{reporte}</p>
+    <div className="mt-10 bg-green-50 border border-green-300 p-6 rounded-xl shadow-md max-w-2xl mx-auto font-sans">
+      <h2 className="text-2xl font-bold mb-4 text-green-800">
+        📄 Reporte de Nómina
+      </h2>
+
+      {empleado ? (
+        <>
+          <div className="whitespace-pre-line bg-white p-4 rounded shadow text-gray-800">
+            {reporte}
+          </div>
+          <div className="mt-6 flex justify-center">
+            <button
+              onClick={handlePrint}
+              className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition"
+            >
+              Imprimir
+            </button>
+          </div>
+        </>
+      ) : (
+        <p className="text-red-600 font-medium mb-4">{reporte}</p>
+      )}
     </div>
   );
 };

@@ -234,7 +234,7 @@ export default function FormProveedores() {
                 href="/proveedores"
                 className="bg-red-600 text-white px-6 py-2 rounded hover:bg-red-700"
               >
-                Regresar
+                Consultar
               </a>
             </div>
           </form>

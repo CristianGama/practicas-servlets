@@ -1,6 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 
 export default function FormPersonal() {
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const id = params.get("id");
+
   const [personal, setpersonal] = useState({
     nombre: "",
     apellido: "",
@@ -15,6 +20,37 @@ export default function FormPersonal() {
   });
 
   const [mostrarModal, setMostrarModal] = useState(false);
+
+  // 🔄 Obtener datos si hay ID (modo editar)
+  useEffect(() => {
+    if (id) {
+      fetch(`http://localhost:4000/api/personal/${id}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success) {
+            const p = data.data;
+            setpersonal({
+              nombre: p.nombre || "",
+              apellido: p.apellido || "",
+              curp: p.curp || "",
+              rfc: p.rfc || "",
+              telefono: p.telefono || "",
+              correo: p.correo || "",
+              matutino: p.matutino || false,
+              vespertino: p.vespertino || false,
+              salario: p.salario || "",
+              puesto: p.puesto || "",
+            });
+          } else {
+            alert("No se pudo cargar la información del personal.");
+          }
+        })
+        .catch((err) => {
+          console.error(err);
+          alert("Error al cargar datos del personal.");
+        });
+    }
+  }, [id]);
 
   const onInputChange = ({ target }) => {
     const { name, value } = target;
@@ -38,8 +74,14 @@ export default function FormPersonal() {
 
   const handleSubmitConfirmado = async () => {
     try {
-      const res = await fetch("http://localhost:4000/api/personal", {
-        method: "POST",
+      const url = id
+        ? `http://localhost:4000/api/personal/${id}`
+        : "http://localhost:4000/api/personal";
+
+      const method = id ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
         headers: {
           "Content-Type": "application/json",
         },
@@ -48,12 +90,18 @@ export default function FormPersonal() {
 
       const data = await res.json();
       console.log("Respuesta del servidor:", data);
-      alert("Personal registrado correctamente");
-      limpiarFormulario();
-      setMostrarModal(false);
+
+      if (data.success) {
+        alert(id ? "Personal modificado correctamente" : "Personal registrado correctamente");
+        if (!id) limpiarFormulario();
+        setMostrarModal(false);
+      } else {
+        alert("Error al guardar los datos.");
+        setMostrarModal(false);
+      }
     } catch (error) {
-      console.error("Error al registrar:", error);
-      alert("Ocurrió un error al registrar.");
+      console.error("Error al guardar:", error);
+      alert("Ocurrió un error al guardar.");
       setMostrarModal(false);
     }
   };
@@ -67,17 +115,14 @@ export default function FormPersonal() {
     setMostrarModal(false);
   };
 
-  const handleConsultar = () => {
-    alert("Consulta no implementada todavía");
-  };
-
   return (
     <div className="bg-[#f4f6f8] min-h-screen flex items-center justify-center font-sans relative">
       <div className="bg-white p-10 rounded-2xl shadow-xl w-full max-w-3xl">
-        <h1 className="text-3xl text-center font-bold text-[#2c3e50] mb-6">REGISTRO DE PERSONAL</h1>
+        <h1 className="text-3xl text-center font-bold text-[#2c3e50] mb-6">
+          {id ? "MODIFICAR PERSONAL" : "REGISTRO DE PERSONAL"}
+        </h1>
         <form className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* campos */}
             {[
               ["Nombre", "nombre"],
               ["Apellido", "apellido"],
@@ -162,14 +207,14 @@ export default function FormPersonal() {
               onClick={handleRegistrar}
               className="bg-[#e67e22] text-white font-bold p-2 rounded-lg hover:bg-[#d35400] transition"
             >
-              Registrar Persona
+              {id ? "Guardar Cambios" : "Registrar Persona"}
             </button>
-            <button
-              onClick={handleConsultar}
-              className="bg-[#2980b9] text-white font-bold p-2 rounded-lg hover:bg-[#2471a3] transition"
+            <a
+              href="/personal"
+              className="bg-red-600 text-white font-bold p-2 rounded-lg hover:bg-red-700 transition"
             >
               Consultar
-            </button>
+            </a>
             <button
               onClick={limpiarFormulario}
               type="button"
@@ -181,12 +226,15 @@ export default function FormPersonal() {
         </form>
       </div>
 
-      {/* Modal de confirmación */}
       {mostrarModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-lg w-[90%] max-w-md">
-            <h2 className="text-xl font-bold mb-4 text-center">Confirmar Registro</h2>
-            <p className="text-center mb-6">¿Estás seguro de registrar esta persona?</p>
+            <h2 className="text-xl font-bold mb-4 text-center">
+              Confirmar {id ? "Modificación" : "Registro"}
+            </h2>
+            <p className="text-center mb-6">
+              ¿Estás seguro de {id ? "modificar" : "registrar"} esta persona?
+            </p>
             <div className="flex justify-center gap-4">
               <button
                 onClick={handleCancelar}
@@ -198,7 +246,7 @@ export default function FormPersonal() {
                 onClick={handleSubmitConfirmado}
                 className="bg-green-600 px-4 py-2 rounded text-white hover:bg-green-700"
               >
-                Sí, registrar
+                Sí, {id ? "guardar cambios" : "registrar"}
               </button>
             </div>
           </div>

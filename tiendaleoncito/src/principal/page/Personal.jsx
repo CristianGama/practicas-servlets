@@ -50,9 +50,7 @@ export default function Personal() {
   };
 
   const handleModificar = (persona) => {
-    alert(
-      `Funcionalidad de modificar para ${persona.nombre} ${persona.apellido} no implementada.`
-    );
+    window.location.href = 'http://localhost:5173/modificar-personal?id='+persona.id
   };
 
   return (
